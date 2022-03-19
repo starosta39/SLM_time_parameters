@@ -12,31 +12,46 @@ import shutil
 import copy
 import math 
 
+
 class Measurment(object):
     
     def __init__(self, path_to_data, zone_coordinates, zone_size, skiped_img,   path_to_result = None, ):
+
+        # we need find  upper left corner of each point area in  any redactor 
         self.first_point_coord_x = zone_coordinates[0][0]  
         self.first_point_coord_y = zone_coordinates[0][1] 
         self.second_point_coord_x = zone_coordinates[1][0]
         self.second_point_coord_y = zone_coordinates[1][1]
         self.third_point_coord_x = zone_coordinates[2][0]
         self.third_point_coord_y = zone_coordinates[2][1]
+
+        # size of each point area  
         self.zone_size = zone_size
+
+        # number of images, which we want to skip
         self.skiped_img = skiped_img
+
+        # checking path  of images
         self.path_to_data = self.path_data(path_to_data)
+
+        # checking path  for result 
         self.path_to_resault = self.path_res(path_to_result)
+
+        #array of names of all images  
         self.img_names = os.listdir(self.path_to_data)
+
+        # 1-dim arrays of intensities of each point area 
         self.first_point_data, self.second_point_data, self.third_point_data = self.get_data()
         
         
         
-        
+    # mthod for calculate time_parametrs of pulse 
     def  calculate_params (self, interval):
         start_time = t.time()
         self.intrval = interval
         data = [self.first_point_data, self.second_point_data, self.third_point_data]
-        self.calculated_time_param = [] 
-        self.calculated_value_param = []
+        self.calculated_time_points = [] 
+        self.calculated_value_points = []
         self.max_point_data = []
         for point in range(3): 
             self.max_point_data.append(self.max_research(data[point], interval))
@@ -141,7 +156,7 @@ class Measurment(object):
                     back_01_value.append(best_value_01_back)
                     back_01_time.append(best_time)
                     
-#                 print(frame_controller, iteration, controller, controller_for_interval, controller_front_01,controller_front_09,controller_back_09,controller_back_01)
+
                 
                 
                 
@@ -176,8 +191,8 @@ class Measurment(object):
                      np.array(back_09_value),np.array(back_01_value)
                     ]
             
-            self.calculated_time_param.append(time)
-            self.calculated_value_param.append(value)
+            self.calculated_time_points.append(time)
+            self.calculated_value_points.append(value)
         self.calculate()
         print("The parameters data is calculated  --- %s seconds ---" % (t.time() - start_time))
             
@@ -193,11 +208,11 @@ class Measurment(object):
         for point in range(3):
             
             
-            front_time = self.calculated_time_param[point][1] - self.calculated_time_param[point][0]
-            back_time = self.calculated_time_param[point][3] - self.calculated_time_param[point][2]
-            impuls_width = self.calculated_time_param[point][2] - self.calculated_time_param[point][1]
+            front_time = self.calculated_time_points[point][1] - self.calculated_time_points[point][0]
+            back_time = self.calculated_time_points[point][3] - self.calculated_time_points[point][2]
+            impuls_width = self.calculated_time_points[point][2] - self.calculated_time_points[point][1]
             
-            full_09_back = np.hstack([full_09_back, self.calculated_time_param[point][2]])
+            full_09_back = np.hstack([full_09_back, self.calculated_time_points[point][2]])
             self.full_front = np.hstack([self.full_front, front_time])
             self.full_back = np.hstack([self.full_back, back_time])
             self.full_width = np.hstack([self.full_width, impuls_width])
@@ -210,7 +225,7 @@ class Measurment(object):
             self.full_period.append(full_09_back[i + 1] - full_09_back[i])
             i += 1
 
-        
+        self.full_period = np.array(self.full_period)
         
         print("Number of front times = ", len(self.full_front))
         print("Number of back times  = ", len(self.full_back))
@@ -225,19 +240,61 @@ class Measurment(object):
         
     
     def get_params(self,conf_prob):
-        parametrs_char = []
+        self.parametrs_char  = []
+        self.conf_prob = conf_prob
         for params in self.params:
-             parametrs_char.append(self.error(params, conf_prob))
+             self.parametrs_char.append(self.error(params, conf_prob))
         names = ["FRONT", "BACK", "WIDTH" , "PERIOD"]
                 
         print ("                              Time parameters  of SLM                        ")
         
         for i in range(4):
             print(" {}  Mean = {}    NSTD = {}   VAR = {}  CONFIDENCE INTERVAL = {}   CONFIDENCE PROBABILITY {}  ".format(names[i],
-                str(parametrs_char[i][0]), str(parametrs_char[i][1]), str(parametrs_char[i][2]), str(parametrs_char[i][3]), conf_prob)
+                str(self.parametrs_char [i][0]), str(self.parametrs_char [i][1]), str(self.parametrs_char [i][2]), 
+                str(self.parametrs_char [i][3]), self.conf_prob)
                 )
-                                                                                                                   
 
+
+
+    def save(self, frame_rate):
+        # save 1_dim of time points 
+        points = ['first', 'second', 'third']
+        value = [self.first_point_data, self.second_point_data, self.third_point_data]
+        for i in range(3):
+            time = np.arange(len(value[i])) / frame_rate
+            np.savetxt(
+                        self.path_to_resault + "\\" + '{}_point_data.txt'.format(points[i]),
+                        np.hstack((time[np.newaxis, :].T, value[i][np.newaxis, :].T))
+                        )
+
+        # save time parameters 
+        names = ["FRONT", "BACK", "WIDTH" , "PERIOD"]
+        file = open(self.path_to_resault + '\\' + 'time_parameters.txt', "w")
+        file.write("                              Time parameters  of SLM                       ")
+        for i in range(4): 
+            file.write(" {}  Mean = {}    NSTD = {}   VAR = {}  CONFIDENCE INTERVAL = {}   CONFIDENCE PROBABILITY {}  ".format(names[i],
+                str(self.parametrs_char [i][0]), str(self.parametrs_char [i][1]), str(self.parametrs_char [i][2]), 
+                str(self.parametrs_char [i][3]), self.conf_prob)
+                )
+        file.close()
+
+        #save max_points 
+        np.savetxt(self.path_to_resault + '\\' + 'max_points_of_every_pulse.txt', np.array(self.max_point_data[:][0])[np.newaxis, :].T)
+
+        #save front 
+        np.savetxt(self.path_to_resault + '\\' + 'fronts.txt', self.full_front[np.newaxis, :].T)
+        #save back
+        np.savetxt(self.path_to_resault + '\\' + 'fronts.txt', self.full_back[np.newaxis, :].T)
+        #save width
+        np.savetxt(self.path_to_resault + '\\' + 'fronts.txt', self.full_width[np.newaxis, :].T)
+        #save periods
+        np.savetxt(self.path_to_resault + '\\' + 'fronts.txt', self.full_period[np.newaxis, :].T)
+
+        
+
+        
+            
+        
 
     def error(self, data, conf_prob):
         mean = np.mean(data)
@@ -249,44 +306,44 @@ class Measurment(object):
         nskd = math.sqrt(var)
         return np.around(np.array([mean, nskd,  var, interval]),decimals=3 )
         
-        
-        
-        
-    
- 
-       
+    # this function    
     def get_data(self):
         start_time = t.time()
-        first_point = []
-        second_point = []
-        third_point = []
+        first_point_data = []
+        second_point_data = []
+        third_point_data = []
         imgs_min = []
         for i in range(self.skiped_img, len(self.img_names)):
             img = np.array(Image.open(self.path_to_data + "\\" + self.img_names[i]))
-            first_point_zone = img[
+            first_point_area = img[
                                     self.first_point_coord_x:self.first_point_coord_x + self.zone_size,
                                     self.first_point_coord_y:self.first_point_coord_y + self.zone_size
                                    ]
-            second_point_zone = img[
+            second_point_area = img[
                                     self.second_point_coord_x:self.second_point_coord_x + self.zone_size,
                                     self.second_point_coord_y:self.second_point_coord_y + self.zone_size
                                     ]
-            third_point_zone = img[
+            third_point_area = img[
                                     self.third_point_coord_x:self.third_point_coord_x + self.zone_size,
                                     self.third_point_coord_y:self.third_point_coord_y + self.zone_size
                                    ]
-            
-            first_point.append(np.sum(first_point_zone))
-            second_point.append(np.sum(second_point_zone))
-            third_point.append(np.sum(third_point_zone))       
+                                   
+            first_point_data.append(np.sum(first_point_area))
+            second_point_data.append(np.sum(second_point_area))
+            third_point_data.append(np.sum(third_point_area))    
+
+            #imgs_min need for normalization
             img_min = np.min(img)
             imgs_min.append(img_min)
-        mean_img_min = np.mean(np.array(imgs_min))    
-        first_point = np.array(first_point) -  self.zone_size**2*mean_img_min
-        second_point = np.array(second_point) -  self.zone_size**2*mean_img_min
-        third_point  =np.array(third_point) -  self.zone_size**2*mean_img_min
+        imgs_min = np.mean(np.array(imgs_min))  
+
+        # this formula need for only one cycle in this function 
+        # you can check it yourself  
+        first_point_data = np.array(first_point_data) -  self.zone_size**2*imgs_min
+        second_point_data = np.array(second_point_data) -  self.zone_size**2*imgs_min
+        third_point_data  =np.array(third_point_data) -  self.zone_size**2*imgs_min
         print("The data is unpacked  --- %s seconds ---" % (t.time() - start_time))
-        return first_point, second_point, third_point
+        return first_point_data, second_point_data, third_point_data
         
     
             
@@ -380,6 +437,7 @@ class Measurment(object):
         else:
             print ("Directory %s was created " % path)
 
+
 res = Measurment(
                 path_to_data = "E:\\учёба\\7 семестр\\УИР и Практика 7 сем\\result_21_12_21_v1",
                 zone_coordinates = ((12,251),(12,145),(12,40)), 
@@ -389,3 +447,4 @@ res = Measurment(
     )
 res.calculate_params(1500)
 res.get_params(0.99)
+res.save(1000)
